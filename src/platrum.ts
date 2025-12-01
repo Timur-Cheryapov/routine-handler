@@ -25,6 +25,17 @@ interface PlatrumListResponse<T> {
   };
 }
 
+// Response structure from /tasks/api/calendar/panel/tasks
+interface CalendarPanelResponse {
+  status: string;
+  data: {
+    backlog_planner: PlatrumTask[];        // Очередь задач (overdue tasks)
+    assignment_unplanned: PlatrumTask[];   // Поручения без сроков (tasks without deadlines)
+    assignment_planned: PlatrumTask[];     // Поручения со сроками (tasks with deadlines)
+    assignment_finished: PlatrumTask[];    // Завершенные задачи (finished tasks)
+  };
+}
+
 export class PlatrumService {
   
   async getUsers(): Promise<PlatrumUser[]> {
@@ -73,37 +84,105 @@ export class PlatrumService {
   }
 
   async getTasks(): Promise<PlatrumTask[]> {
-    console.log('Fetching all tasks from Platrum...');
+    console.log('Fetching tasks from Platrum calendar panel...');
     
     try {
-      // Fetch all tasks (filter doesn't work in the API)
-      const response = await client.post('/tasks/api/task/list', {});
-      
-      if (response.data?.status === 'success') {
-        let tasks: PlatrumTask[] = [];
-        const data = response.data.data;
-
-        if (data?.list && Array.isArray(data.list)) {
-          tasks = data.list;
-        } else if (Array.isArray(data)) {
-          tasks = data;
-        }
-
-        console.log(`Fetched ${tasks.length} total tasks.`);
-
-        // Filter client-side for unfinished tasks only
-        const activeTasks = tasks.filter(t => 
-          !t.is_finished && 
-          !t.deletion_date &&
-          t.responsible_user_ids && 
-          t.responsible_user_ids.length > 0
-        );
-
-        console.log(`Filtered to ${activeTasks.length} active tasks with responsible users.`);
-        return activeTasks;
-      } else {
-        console.error('Failed to fetch tasks:', response.data);
+      // First, get all active users
+      const users = await this.getUsers();
+      if (users.length === 0) {
+        console.error('No users found. Cannot fetch tasks.');
+        return [];
       }
+
+      console.log(`Fetching calendar tasks for ${users.length} active users...`);
+      
+      // Use a Map to deduplicate tasks by ID (same task might appear in multiple user views)
+      const taskMap = new Map<number, PlatrumTask>();
+      
+      // Fetch tasks for each user
+      // Note: Each user has their own calendar view with tasks they're responsible for
+      for (const user of users) {
+        console.log(`Fetching tasks for ${user.user_name} (${user.user_id})...`);
+        
+        const requestBody = {
+          user_id: user.user_id, // Must specify a specific user (null doesn't work)
+          panel_limits: {
+            // Очередь задач (backlog/queue) - overdue tasks and tasks without deadlines
+            backlog_planner: {
+              limit: 5000,
+              offset: 0,
+              order: [
+                { column: 'order.calendar_page_backlog_planner_none', direction: 'asc' },
+                { column: 'id', direction: 'desc' }
+              ],
+              filter: []
+            },
+            // Поручения без сроков (assignments without planned dates)
+            assignment_unplanned: {
+              limit: 0,
+              offset: 0,
+              order: [
+                // { column: 'responsible_user_ids', direction: 'asc' },
+                // { column: 'order.calendar_page_assignment_unplanned_responsible_user_id', direction: 'asc' },
+                // { column: 'id', direction: 'desc' }
+              ],
+              filter: []
+            },
+            // Поручения со сроками (assignments with planned dates) - we don't need these for our report
+            assignment_planned: {
+              limit: 0, // Don't fetch these
+              offset: 0,
+              order: [],
+              filter: []
+            },
+            // Завершенные задачи (finished tasks) - we don't need these
+            assignment_finished: {
+              limit: 0, // Don't fetch these
+              offset: 0,
+              order: [],
+              filter: []
+            }
+          }
+        };
+
+        try {
+          const response = await client.post<CalendarPanelResponse>(
+            'tasks/api/calendar/panel/tasks',
+            requestBody
+          );
+          
+          if (response.data?.status === 'success') {
+            const data = response.data.data;
+            
+            // Combine backlog_planner and assignment_unplanned
+            // These represent the "Очередь задач" (task queue) that we want to report on
+            const backlogTasks = data.backlog_planner || [];
+            //const unplannedTasks = data.assignment_unplanned || [];
+            
+            //const userTasks = [...backlogTasks, ...unplannedTasks];
+            const userTasks = backlogTasks;
+            
+            // Add to map (deduplicates by task ID)
+            for (const task of userTasks) {
+              if (!task.deletion_date && task.responsible_user_ids?.length > 0) {
+                taskMap.set(task.id, task);
+              }
+            }
+            
+            console.log(`  Found ${backlogTasks.length} backlog = ${userTasks.length} tasks for ${user.user_name}`);
+          }
+        } catch (error: any) {
+          console.error(`  Error fetching tasks for ${user.user_name}:`, error?.response?.data?.message || error.message);
+        }
+        
+        // Small delay to avoid rate limiting
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      const allTasks = Array.from(taskMap.values());
+      console.log(`Total unique tasks across all users: ${allTasks.length}`);
+      
+      return allTasks;
     } catch (error: any) {
       console.error('Error fetching tasks:', error?.response?.data || error.message);
     }
