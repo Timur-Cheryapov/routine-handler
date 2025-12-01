@@ -1,9 +1,9 @@
 name: Daily Task Report
 
 on:
-  schedule:
-    # Runs at 06:30 UTC (9:30 MSK) every Monday through Friday
-    - cron: '30 6 * * 1-5'
+  # schedule:
+  #   # Runs at 06:30 UTC (9:30 MSK) every Monday through Friday
+  #   - cron: '30 6 * * 1-5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
