@@ -2,26 +2,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const defaultUsersNotToTrack = [
-  'd197eea0c734e56c35ffdf0079779a44', // Timur
-  '7c8c51fe41165056dadbaa8aeb0bb8d1', // Aleksandr
-  '483f7ed3f1b1533a5ce37f47c6e01dc4', // Railya Tinbakova
-  'bd068078cd7c0cd4e9469ff1d2e38de0', // Denis Isaev
-  'f1f8573d51c1f96fb371d9dd92cf588a', // Tatyana Koryukina
-] as const;
-
-const envUsersNotToTrack = process.env.PLATRUM_USERS_NOT_TO_TRACK
-  ? process.env.PLATRUM_USERS_NOT_TO_TRACK.split(',')
-      .map(id => id.trim())
-      .filter(Boolean)
-  : undefined;
-
 export const config = {
   platrum: {
-    host: process.env.PLATRUM_HOST || '', // e.g., 'abrands'
+    host: process.env.PLATRUM_HOST || '',
     apiKey: process.env.PLATRUM_API_KEY || '',
-    queueColumnName: process.env.PLATRUM_QUEUE_COLUMN_NAME || 'Очередь', // Name of the column to check
-    usersNotToTrack: envUsersNotToTrack ?? [...defaultUsersNotToTrack],
+    usersNotToTrack: process.env.PLATRUM_USERS_NOT_TO_TRACK
+      ? process.env.PLATRUM_USERS_NOT_TO_TRACK.split(',')
+          .map(id => id.trim())
+          .filter(Boolean)
+      : [],
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',

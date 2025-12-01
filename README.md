@@ -32,8 +32,9 @@ This project is an automated agent that fetches task data from Platrum, analyzes
 3. **Configure Environment:**
    Create a `.env` file in the root directory:
    ```env
-   PLATRUM_HOST=your_company_subdomain  # e.g., 'abrands' for abrands.platrum.ru
+   PLATRUM_HOST=your_company_subdomain
    PLATRUM_API_KEY=your_platrum_api_key
+   PLATRUM_USERS_NOT_TO_TRACK=user_id1,user_id2,user_id3  # Comma-separated user IDs to exclude
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_CHAT_ID=your_chat_id        # e.g., -100xxxxxxx
    TELEGRAM_THREAD_ID=12345             # Optional: if sending to a specific topic
@@ -70,6 +71,7 @@ Go to your repository **Settings** > **Secrets and variables** > **Actions** and
 |------|-------------|
 | `PLATRUM_HOST` | Your Platrum subdomain (e.g. `abrands`). |
 | `PLATRUM_API_KEY` | Your API Key from Platrum Profile settings. |
+| `PLATRUM_USERS_NOT_TO_TRACK` | Comma-separated list of user IDs to exclude from tracking. |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather. |
 | `TELEGRAM_CHAT_ID` | ID of the group chat (starts with `-100` for supergroups). |
 | `TELEGRAM_THREAD_ID` | (Optional) ID of the topic thread if using topics. |
@@ -77,11 +79,14 @@ Go to your repository **Settings** > **Secrets and variables** > **Actions** and
 
 ### 3. Schedule
 The workflow is defined in `.github/workflows/daily_report.yml`.
-It is scheduled to run at **07:00 UTC** (10:00 Moscow Time) every Monday through Friday.
 
-To change the schedule, edit the `cron` line in the workflow file:
+**Important:** GitHub Actions scheduled workflows only run from the **default branch** (usually `main`). Make sure your workflow file is pushed to the default branch.
+
+**Note:** GitHub Actions cron jobs may experience delays during high load periods. If your workflow doesn't trigger immediately at the scheduled time, this is normal behavior.
+
+To change the schedule, edit the `cron` line in the workflow file. The cron expression uses UTC time:
 ```yaml
-- cron: '0 7 * * 1-5'
+- cron: '*/10 18 * * 1-5'  # Every 10 minutes during hour 18 UTC
 ```
 
 ### 4. Manual Trigger
