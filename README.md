@@ -69,7 +69,7 @@ Go to your repository **Settings** > **Secrets and variables** > **Actions** and
 
 | Name | Description |
 |------|-------------|
-| `PLATRUM_HOST` | Your Platrum subdomain (e.g. `abrands`). |
+| `PLATRUM_HOST` | Your Platrum subdomain (e.g. `yourcompany`). |
 | `PLATRUM_API_KEY` | Your API Key from Platrum Profile settings. |
 | `PLATRUM_USERS_NOT_TO_TRACK` | Comma-separated list of user IDs to exclude from tracking. |
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather. |

@@ -2,7 +2,7 @@
 
 export interface PlatrumUser {
   user_id: string; // User ID
-  user_name: string; // Full name (e.g., "Александр", "Владимир Корюкин")
+  user_name: string; // Full name
   name: string; // Also contains full name
   user_email: string;
   is_disabled: boolean;

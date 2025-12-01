@@ -6,4 +6,6 @@ coverage
 test-output.txt
 stats/
 platrum_data/
-
+comet/
+src/platrum.ts.backup
+remove-sensitive-files.bat
