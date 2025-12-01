@@ -12,19 +12,6 @@ const client = axios.create({
   },
 });
 
-interface PlatrumResponse<T> {
-  status: string;
-  data: T;
-}
-
-interface PlatrumListResponse<T> {
-  status: string;
-  data: {
-    list: T[];
-    total?: number;
-  };
-}
-
 // Response structure from /tasks/api/calendar/panel/tasks
 interface CalendarPanelResponse {
   status: string;
@@ -94,17 +81,6 @@ export class PlatrumService {
         return [];
       }
 
-      // Filter users that do not need to be tracked
-      const usersNotToTrack = [
-        'd197eea0c734e56c35ffdf0079779a44', // Timur
-        '7c8c51fe41165056dadbaa8aeb0bb8d1', // Aleksandr
-        '483f7ed3f1b1533a5ce37f47c6e01dc4', // Railya Tinbakova
-        'bd068078cd7c0cd4e9469ff1d2e38de0', // Denis Isaev
-        'f1f8573d51c1f96fb371d9dd92cf588a', // Tatyana Koryukina
-      ]
-
-      const usersToTrack = users.filter(user => !usersNotToTrack.includes(user.user_id));
-
       console.log(`Fetching calendar tasks for ${users.length} active users...`);
       
       // Use a Map to deduplicate tasks by ID (same task might appear in multiple user views)
@@ -112,7 +88,7 @@ export class PlatrumService {
       
       // Fetch tasks for each user
       // Note: Each user has their own calendar view with tasks they're responsible for
-      for (const user of usersToTrack) {
+      for (const user of users) {
         console.log(`Fetching tasks for ${user.user_name} (${user.user_id})...`);
         
         const requestBody = {
@@ -173,10 +149,16 @@ export class PlatrumService {
             //const userTasks = [...backlogTasks, ...unplannedTasks];
             const userTasks = backlogTasks;
             
-            // Add to map (deduplicates by task ID)
-            for (const task of userTasks) {
-              if (!task.deletion_date && task.responsible_user_ids?.length > 0) {
-                taskMap.set(task.id, task);
+            const isExcludedUser = config.platrum.usersNotToTrack.includes(user.user_id);
+            
+            if (isExcludedUser) {
+              console.log(`  Skipping tasks for excluded user ${user.user_name}`);
+            } else {
+              // Add to map (deduplicates by task ID)
+              for (const task of userTasks) {
+                if (!task.deletion_date && task.responsible_user_ids?.length > 0) {
+                  taskMap.set(task.id, task);
+                }
               }
             }
             
