@@ -3,7 +3,7 @@ name: Daily Task Report
 on:
   schedule:
     # Runs at 07:00 UTC (10:00 MSK) every Monday through Friday
-    - cron: '*/10 15 * * 1-5'
+    - cron: '*/10 18 * * 1-5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
