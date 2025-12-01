@@ -6,13 +6,14 @@ This project is an automated agent that fetches task data from Platrum, analyzes
 - Fetches all active employees from Platrum.
 - Fetches tasks for each employee.
 - Identifies overdue tasks and tasks with no deadline.
-- Generates a formatted Telegram message with statistics and motivational text.
+- Uses GPT-4o-mini to generate motivating, personalized reports with statistics and encouragement.
 - Sends the report to a specified Telegram chat (and topic/thread).
 
 ## Prerequisites
 - Node.js (v18+)
 - A Platrum account with API access.
 - A Telegram Bot (create via @BotFather).
+- An OpenAI API key with access to GPT-4o-mini.
 
 ## Local Setup
 
@@ -35,6 +36,7 @@ This project is an automated agent that fetches task data from Platrum, analyzes
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_CHAT_ID=your_chat_id        # e.g., -100xxxxxxx
    TELEGRAM_THREAD_ID=12345             # Optional: if sending to a specific topic
+   OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx # Your OpenAI API key
    ```
 
 4. **Test API connection (optional):**
@@ -70,6 +72,7 @@ Go to your repository **Settings** > **Secrets and variables** > **Actions** and
 | `TELEGRAM_BOT_TOKEN` | Token from @BotFather. |
 | `TELEGRAM_CHAT_ID` | ID of the group chat (starts with `-100` for supergroups). |
 | `TELEGRAM_THREAD_ID` | (Optional) ID of the topic thread if using topics. |
+| `OPENAI_API_KEY` | Your OpenAI API key (starts with `sk-proj-` or `sk-`). |
 
 ### 3. Schedule
 The workflow is defined in `.github/workflows/daily_report.yml`.
@@ -104,11 +107,14 @@ The agent implements the workflow described in `prompt.txt`:
 3. **Analyze Tasks**: For each user, counts:
    - **Overdue tasks**: Tasks with `finish_date` in the past
    - **Tasks without deadline**: Tasks with no `finish_date` set
-4. **Generate Report**: Creates a motivational message with:
-   - Overall statistics
-   - Sorted list of employees (best to worst)
-   - Emoji indicators (🏆 for 0-3 overdue, ✅ for 4-10, ⚠️ for 11+)
-   - Weekly goal and motivation
+4. **Generate Report**: Uses GPT-4o-mini to create a personalized, motivational message with:
+   - Friendly greeting and overall statistics
+   - Celebrating top performers and achievements
+   - Categorized employee list (Leaders, Excellent, Good, Needs Attention)
+   - Constructive recommendations
+   - Weekly goals (25% reduction target)
+   - Supportive call to action
+   - Falls back to basic formatting if AI is unavailable
 5. **Send to Telegram**: Delivers the report to the specified chat/thread
 
 ## Troubleshooting

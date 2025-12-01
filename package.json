@@ -4,9 +4,10 @@
   "description": "Automated Platrum task reporting to Telegram",
   "main": "src/index.ts",
   "scripts": {
-    "start": "node --loader ts-node/esm --no-warnings src/index.ts",
-    "test-api": "node --loader ts-node/esm --no-warnings src/test-platrum-api.ts",
+    "start": "npm run build && node dist/index.js",
+    "test-api": "npm run build && node dist/test-platrum-api.js",
     "build": "tsc",
+    "dev": "node --loader ts-node/esm --no-warnings src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -22,7 +23,8 @@
     "axios": "^1.6.0",
     "date-fns": "^2.30.0",
     "dotenv": "^16.3.0",
-    "node-telegram-bot-api": "^0.64.0"
+    "node-telegram-bot-api": "^0.64.0",
+    "openai": "^6.9.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

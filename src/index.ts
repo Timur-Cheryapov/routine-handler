@@ -38,7 +38,7 @@ async function main() {
 
   // 3. Generate Report
   console.log('Generating report...');
-  const report = generator.generateReport(users, tasks);
+  const report = await generator.generateReport(users, tasks);
 
   // 4. Send to Telegram
   console.log('Sending report to Telegram...');
