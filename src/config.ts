@@ -19,9 +19,6 @@ export const config = {
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
-  },
-  schedule: {
-    cron: '0 7 * * 1-5', // At 10:00 on every day-of-week from Monday through Friday.
   }
 };
 
