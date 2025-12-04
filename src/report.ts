@@ -72,114 +72,205 @@ export class ReportGenerator {
     
     const totalOverdue = stats.reduce((sum, s) => sum + s.overdueCount, 0);
 
-    // Prepare data for AI
+    // Prepare data for AI - only for the AI-generated sections
     const employeeData = stats.map(stat => ({
       name: stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`,
       overdue: stat.overdueCount,
       noDeadline: stat.noDeadlineCount
     }));
 
-    // Calculate improvement if previous stats exist
-    let comparisonText = '';
+    const targetOverdue = Math.max(0, Math.round(totalOverdue * 0.75));
+
+    // Generate AI content for specific sections
+    const aiContent = await this.generateAISections(employeeData, totalOverdue, previousStats);
+
+    // Build the hardcoded structured report
+    const lines: string[] = [];
+    
+    // Header
+    lines.push(`📊 Отчёт по задачам команды - ${dateStr}`);
+    lines.push('');
+    lines.push('Привет, команда! 😊');
+    lines.push('');
+    
+    // General overview
+    lines.push('📈 Общая картина:');
+    lines.push(`• Всего просроченных задач: ${totalOverdue}`);
+    
+    // Comparison with previous report
     if (previousStats) {
       const prevTotal = previousStats.totalOverdue;
       const change = prevTotal - totalOverdue;
-      const percent = prevTotal > 0 ? Math.abs(Math.round((change / prevTotal) * 100)) : 0;
+      const absChange = Math.abs(change);
       
       if (change > 0) {
-        comparisonText = `\n\nСравнение с прошлым отчётом (${previousStats.date}):
-- Было просроченных задач: ${prevTotal}
-- Стало просроченных задач: ${totalOverdue}
-- Улучшение на ${percent}%! 🎉`;
+        lines.push(`• 🟢 Просроченных задач стало меньше на ${absChange} (было ${prevTotal})! 🎉`);
       } else if (change < 0) {
-        comparisonText = `\n\nСравнение с прошлым отчётом (${previousStats.date}):
-- Было просроченных задач: ${prevTotal}
-- Стало просроченных задач: ${totalOverdue}
-- Увеличение на ${percent}%`;
+        lines.push(`• 🔴 Просроченных задач стало больше на ${absChange} (было ${prevTotal})`);
       } else {
-        comparisonText = `\n\nСравнение с прошлым отчётом (${previousStats.date}):
-- Просроченных задач осталось столько же: ${totalOverdue}`;
+        lines.push(`• Просроченных задач осталось столько же: ${totalOverdue}`);
       }
     }
+    
+    lines.push('');
+    
+    // Team results
+    lines.push('🏆 Результаты по команде: (от лучших показателей к тем, где нужно больше внимания)');
+    
+    // Categorize employees
+    const topPerformers = stats.filter(s => s.overdueCount <= 3);
+    const needsAttention = stats.filter(s => s.overdueCount > 3);
+    
+    if (topPerformers.length > 0) {
+      lines.push('✅ Топ-исполнители (0-3 просроченных)');
+      topPerformers.forEach(stat => {
+        const name = stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`;
+        lines.push(`• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`);
+      });
+      lines.push('');
+    }
+    
+    if (needsAttention.length > 0) {
+      lines.push('📋 Требует внимания (4+ просроченных)');
+      needsAttention.forEach(stat => {
+        const name = stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`;
+        lines.push(`• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`);
+      });
+      lines.push('');
+    }
+    
+    // AI-generated positive trends
+    lines.push('💪 Позитивные тренды:');
+    lines.push(aiContent.positiveTrends);
+    lines.push('');
+    
+    // Goal
+    lines.push(`🎯 Цель на эту неделю: Снизить общее количество просроченных задач ещё на 25% (с ${totalOverdue} до ${targetOverdue}).`);
+    lines.push('');
+    
+    // AI-generated recommendations
+    lines.push('💡 Рекомендации:');
+    lines.push(aiContent.recommendations);
+    lines.push('');
+    
+    // Call to action
+    lines.push('❗ Если нужна помощь или перераспределение задач — пишите в чат!');
+    lines.push('');
+    
+    // AI-generated closing
+    lines.push(aiContent.closing);
+    
+    return lines.join('\n');
+  }
 
-    const systemPrompt = `Ты — опытный менеджер проектов, который создаёт мотивирующие отчёты по задачам команды.
-Сформируй отчёт СТРОГО в следующей структуре (те же заголовки и порядок), на русском языке, с дружелюбным тоном, но сохраняя официальность и эмодзи. Форматирование должно быть поддерживаемым в Telegram.
-
-1) Заголовок:
-   «📊 Отчёт по задачам команды - {дата}»
-
-2) Короткое приветствие одной строкой.
-
-3) Блок «📈 Общая картина:» с маркерами «•»:
-   • «Всего просроченных задач: {totalOverdue}»
-   • Если есть данные прошлого отчёта: 
-     - Если стало меньше: «Это на {percent}% меньше, чем в прошлый раз (было {prevTotal})! 🎉»
-     - Если стало больше: «Это на {percent}% больше, чем в прошлый раз (было {prevTotal}) 📈»
-     - Если осталось столько же: «Осталось столько же, как в прошлый раз ({prevTotal})»
-   • «Сотрудников проанализировано: {employeesCount}»
-
-4) Блок «🏆 Результаты по команде:» и строка «(от лучших показателей к тем, где нужно больше внимания)».
-   Разбей сотрудников по категориям и выведи в указанном порядке:
-   - «✅ Топ-исполнители (0-3 просроченных)»
-   - «👍 Хорошо (4-10 просроченных)»
-   - «📋 Требует внимания (11+ просроченных)»
-   В каждой категории выведи строки вида:
-   • «{Имя} - просрочено: X, без сроков: Y» (можно добавить позитивный смайлик по желанию)
-
-5) Блок «💪 Позитивные тренды:» — 2-3 пункта, если есть что отметить.
-
-6) Блок «🎯 Цель на эту неделю:» — «Снизить общее количество просроченных задач ещё на 25% (с {totalOverdue} до {targetOverdue})».
-
-7) Блок «💡 Рекомендации:» — 2-3 практичных пункта.
-
-8) Строка «❗ Если нужна помощь или перераспределение задач — пишите в чат!»
-
-9) Воодушевляющее закрытие одной строкой (например, «Команда, отличная динамика! Вместе мы справимся! 🚀»).
+  private async generateAISections(
+    employeeData: Array<{ name: string; overdue: number; noDeadline: number }>,
+    totalOverdue: number,
+    previousStats?: ReportStats | null
+  ): Promise<{ positiveTrends: string; recommendations: string; closing: string }> {
+    const systemPrompt = `Ты — опытный менеджер проектов, создающий мотивирующие отчёты для команды.
+Твоя задача — сгенерировать три секции отчёта на русском языке с дружелюбным, но профессиональным тоном, для сотрудников в чате, основываясь на количестве текущих задач с просроченным сроком.
 
 Требования:
-- используй ровно эти заголовки и порядок;
-- не добавляй технических комментариев;
-- сортируй сотрудников по возрастанию просрочек внутри категорий;`;
+- Не добавляй заголовки секций (они уже есть в отчёте)
+- Используй маркеры «•» для списков
+- Будь конкретным и упоминай имена сотрудников где уместно
+- Используй эмодзи для настроения`;
 
-    const employeesCount = employeeData.length;
-    const targetOverdue = Math.max(0, Math.round(totalOverdue * 0.75));
-    const prevTotalForPrompt = previousStats ? String(previousStats.totalOverdue) : '';
+    const userPrompt = `Данные команды:
+Всего просроченных задач: ${totalOverdue}
+${previousStats ? `Предыдущее значение: ${previousStats.totalOverdue}` : 'Предыдущие данные: нет'}
 
-    const userPrompt = `Данные для отчёта на ${dateStr}:
-
-Дата: ${dateStr}
-Всего просроченных задач (сейчас): ${totalOverdue}
-Сотрудников проанализировано: ${employeesCount}
-${previousStats ? `Предыдущее значение просроченных задач: ${prevTotalForPrompt} (дата: ${previousStats.date})` : 'Предыдущее значение: нет данных'}
-Целевое значение на неделю (-25%): ${targetOverdue}
-
-Список сотрудников (отсортирован по возрастанию просрочек, для категоризации):
+Сотрудники:
 ${employeeData.map(e => `${e.name}: просрочено ${e.overdue}, без сроков ${e.noDeadline}`).join('\n')}
 
-Сформируй конечный отчёт строго по указанной выше структуре.`;
+Сгенерируй три секции в следующем формате:
+
+1. Позитивные тренды (2-3 пункта для сотрудников в чате с маркерами «•»):
+[отметь успехи сотрудников с наименьшими просрочками, позитивные изменения]
+
+2. Рекомендации (2-3 практичных совета для сотрудников в чате с маркерами «•»):
+[конкретные действия для улучшения работы с задачами]
+
+3. Закрытие (одна воодушевляющая строка):
+[мотивирующее сообщение с эмодзи]
+
+Важно: каждая секция должна быть на новой строке, без заголовков секций, только содержимое.`;
 
     try {
       const response = await this.openai.responses.create({
         model: 'gpt-4o-mini',
         instructions: systemPrompt,
         input: userPrompt,
-        temperature: 0.9,
-        max_output_tokens: 1500,
+        temperature: 0.8,
+        max_output_tokens: 500,
       });
 
       const aiResponse = response.output_text?.trim();
       
       if (aiResponse) {
-        return aiResponse;
+        // Parse the AI response into three sections
+        const sections = aiResponse.split(/\n\n+/);
+        
+        // Find sections by looking for patterns
+        let positiveTrends = '';
+        let recommendations = '';
+        let closing = '';
+        
+        for (let i = 0; i < sections.length; i++) {
+          const section = sections[i]?.trim();
+          if (!section) continue;
+          
+          // First section with bullets -> positive trends
+          if (!positiveTrends && section.includes('•')) {
+            positiveTrends = section;
+          } 
+          // Second section with bullets -> recommendations
+          else if (positiveTrends && !recommendations && section.includes('•')) {
+            recommendations = section;
+          }
+          // Last non-empty section without bullets or very short -> closing
+          else if (!closing && (!section.includes('•') || section.length < 100)) {
+            closing = section;
+          }
+        }
+        
+        return {
+          positiveTrends: positiveTrends || this.getDefaultPositiveTrends(employeeData),
+          recommendations: recommendations || this.getDefaultRecommendations(),
+          closing: closing || 'Команда, отличная динамика! Вместе мы справимся! 🚀'
+        };
       } else {
-        console.warn('OpenAI returned empty response, falling back to basic format');
-        return this.formatMessageBasic(stats);
+        console.warn('OpenAI returned empty response, using defaults');
+        return this.getDefaultAISections(employeeData);
       }
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
-      console.log('Falling back to basic format');
-      return this.formatMessageBasic(stats);
+      console.log('Using default AI sections');
+      return this.getDefaultAISections(employeeData);
     }
+  }
+
+  private getDefaultAISections(employeeData: Array<{ name: string; overdue: number; noDeadline: number }>): 
+    { positiveTrends: string; recommendations: string; closing: string } {
+    return {
+      positiveTrends: this.getDefaultPositiveTrends(employeeData),
+      recommendations: this.getDefaultRecommendations(),
+      closing: 'Команда, отличная динамика! Вместе мы справимся! 🚀'
+    };
+  }
+
+  private getDefaultPositiveTrends(employeeData: Array<{ name: string; overdue: number; noDeadline: number }>): string {
+    const topPerformers = employeeData.filter(e => e.overdue <= 3);
+    if (topPerformers.length > 0) {
+      const names = topPerformers.map(e => e.name).join(' и ');
+      return `• ${names} демонстрируют отличные результаты и держат свои просрочки на низком уровне!\n• Команда активно работает над задачами.`;
+    }
+    return '• Команда активно работает над задачами.\n• Каждый имеет возможность улучшить свои результаты.';
+  }
+
+  private getDefaultRecommendations(): string {
+    return '• Проверяйте свои задачи каждый день, чтобы заранее выявлять возможные просрочки.\n• Обсуждайте с командой сложные задачи, чтобы избежать задержек.\n• Ставьте напоминания для контроля сроков выполнения задач.';
   }
 
   private formatMessageBasic(stats: EmployeeStats[]): string {
