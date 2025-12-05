@@ -72,17 +72,7 @@ export class ReportGenerator {
     
     const totalOverdue = stats.reduce((sum, s) => sum + s.overdueCount, 0);
 
-    // Prepare data for AI - only for the AI-generated sections
-    const employeeData = stats.map(stat => ({
-      name: stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`,
-      overdue: stat.overdueCount,
-      noDeadline: stat.noDeadlineCount
-    }));
-
     const targetOverdue = Math.max(0, Math.round(totalOverdue * 0.75));
-
-    // Generate AI content for specific sections
-    const aiContent = await this.generateAISections(employeeData, totalOverdue, previousStats);
 
     // Build the hardcoded structured report
     const lines: string[] = [];
@@ -117,27 +107,41 @@ export class ReportGenerator {
     // Team results
     lines.push('🏆 Результаты по команде: (от лучших показателей к тем, где нужно больше внимания)');
     
-    // Categorize employees
+    // Categorize employees and build formatted string for AI
     const topPerformers = stats.filter(s => s.overdueCount <= 3);
     const needsAttention = stats.filter(s => s.overdueCount > 3);
     
+    const employeeDataLines: string[] = [];
+    
     if (topPerformers.length > 0) {
       lines.push('✅ Топ-исполнители (0-3 просроченных)');
+      employeeDataLines.push('✅ Топ-исполнители (0-3 просроченных)');
       topPerformers.forEach(stat => {
         const name = stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`;
-        lines.push(`• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`);
+        const employeeLine = `• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`;
+        lines.push(employeeLine);
+        employeeDataLines.push(employeeLine);
       });
       lines.push('');
     }
     
     if (needsAttention.length > 0) {
       lines.push('📋 Требует внимания (4+ просроченных)');
+      employeeDataLines.push('📋 Требует внимания (4+ просроченных)');
       needsAttention.forEach(stat => {
         const name = stat.user.user_name || stat.user.name || `User ${stat.user.user_id}`;
-        lines.push(`• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`);
+        const employeeLine = `• ${name} - просрочено: ${stat.overdueCount}, без сроков: ${stat.noDeadlineCount}`;
+        lines.push(employeeLine);
+        employeeDataLines.push(employeeLine);
       });
       lines.push('');
     }
+    
+    // Prepare formatted employee data string for AI
+    const employeeDataString = employeeDataLines.join('\n');
+    
+    // Generate AI content for specific sections
+    const aiContent = await this.generateAISections(employeeDataString, totalOverdue, previousStats);
     
     // AI-generated positive trends
     lines.push('💪 Позитивные тренды:');
@@ -164,7 +168,7 @@ export class ReportGenerator {
   }
 
   private async generateAISections(
-    employeeData: Array<{ name: string; overdue: number; noDeadline: number }>,
+    employeeDataString: string,
     totalOverdue: number,
     previousStats?: ReportStats | null
   ): Promise<{ positiveTrends: string; recommendations: string; closing: string }> {
@@ -182,7 +186,7 @@ export class ReportGenerator {
 ${previousStats ? `Предыдущее значение: ${previousStats.totalOverdue}` : 'Предыдущие данные: нет'}
 
 Сотрудники:
-${employeeData.map(e => `${e.name}: просрочено ${e.overdue}, без сроков ${e.noDeadline}`).join('\n')}
+${employeeDataString}
 
 Сгенерируй три секции в следующем формате:
 
@@ -236,37 +240,32 @@ ${employeeData.map(e => `${e.name}: просрочено ${e.overdue}, без с
         }
         
         return {
-          positiveTrends: positiveTrends || this.getDefaultPositiveTrends(employeeData),
+          positiveTrends: positiveTrends || this.getDefaultPositiveTrends(),
           recommendations: recommendations || this.getDefaultRecommendations(),
           closing: closing || 'Команда, отличная динамика! Вместе мы справимся! 🚀'
         };
       } else {
         console.warn('OpenAI returned empty response, using defaults');
-        return this.getDefaultAISections(employeeData);
+        return this.getDefaultAISections();
       }
     } catch (error) {
       console.error('Error calling OpenAI API:', error);
       console.log('Using default AI sections');
-      return this.getDefaultAISections(employeeData);
+      return this.getDefaultAISections();
     }
   }
 
-  private getDefaultAISections(employeeData: Array<{ name: string; overdue: number; noDeadline: number }>): 
+  private getDefaultAISections(): 
     { positiveTrends: string; recommendations: string; closing: string } {
     return {
-      positiveTrends: this.getDefaultPositiveTrends(employeeData),
+      positiveTrends: this.getDefaultPositiveTrends(),
       recommendations: this.getDefaultRecommendations(),
       closing: 'Команда, отличная динамика! Вместе мы справимся! 🚀'
     };
   }
 
-  private getDefaultPositiveTrends(employeeData: Array<{ name: string; overdue: number; noDeadline: number }>): string {
-    const topPerformers = employeeData.filter(e => e.overdue <= 3);
-    if (topPerformers.length > 0) {
-      const names = topPerformers.map(e => e.name).join(' и ');
-      return `• ${names} демонстрируют отличные результаты и держат свои просрочки на низком уровне!\n• Команда активно работает над задачами.`;
-    }
-    return '• Команда активно работает над задачами.\n• Каждый имеет возможность улучшить свои результаты.';
+  private getDefaultPositiveTrends(): string {
+    return '• Команда активно работает над задачами.\n• Есть сотрудники с отличными показателями по просроченным задачам.\n• Продолжайте в том же духе!';
   }
 
   private getDefaultRecommendations(): string {
